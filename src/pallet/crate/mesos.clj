@@ -3,7 +3,7 @@
   (:require
    [digest]
    [clojure.tools.logging :refer [debugf]]
-   [pallet.actions :refer [package-source package-manager packages exec-checked-script]]
+   [pallet.actions :refer [package-source package-manager packages exec-checked-script remote-file]]
    [pallet.crate         :refer [defplan defmulti-plan defmethod-plan nodes-with-role group-name target-node target]]
    [pallet.crate.service :refer [service]]
    [pallet.node :refer [running? primary-ip private-ip compute-service]]
@@ -78,28 +78,23 @@
 (defplan config-slave []
   (let [target-public-ip  (primary-ip (target-node))
         zookeeper-ip (get-private-ip :zookeeper)]
-    (exec-checked-script "Set hostname" ("echo" ~target-primary-ip  ">" "/etc/mesos-slave/hostname"))
+    (exec-checked-script "Set hostname" ("echo" ~target-public-ip  ">" "/etc/mesos-slave/hostname"))
     (exec-checked-script "Set zookeeper ip" ("echo" ~(format "zk://%s:2181/mesos" zookeeper-ip)  ">" "/etc/mesos/zk"))))
 
 (defplan config-master []
     (exec-checked-script "Set mesos hostname" ("echo" ~(primary-ip (target-node)) ">" "/etc/mesos-master/hostname"))
     (remote-file "/etc/haproxy/haproxy-base.cfg"
+                 :local-file "resources/haproxy-base.cfg"
                  :md5 (digest/md5 "resources/haproxy-base.cfg")
                  :owner "haproxy"
                  :group "haproxy")
     (remote-file "/usr/bin/haproxy-marathon-bridge-mod"
+                 :local-file "resources/haproxy-marathon-bridge-mod"
                  :md5 (digest/md5 "resources/haproxy-marathon-bridge-mod")
                  :mode "755")
 
     (exec-checked-script "install haproxy-marathon-bridge-mod"
                       ("haproxy-marathon-bridge-mod install_haproxy_system 127.0.0.1:8080")))
-
-
-(defplan add-slaves-to-hosts []
-    (exec-checked-script "backup hosts" ("cp /etc/hosts /etc/hosts-base"))
-    (doseq [node (nodes-with-role :slave)]
-      (echo ~(private-ip node) " " ~(public-ip node) " > /etc/hosts")))
-
 
 (defplan add-mesos-repo []
   (package-source "Mesos" :apt {:url "http://repos.mesosphere.io/ubuntu" :key-server "keyserver.ubuntu.com" :key-id "E56151BF"})
@@ -121,5 +116,4 @@
   (config-slave)
   (allow-slave-access-to-zookeeper-and-master)
   (allow-master-access-to-slave)
-  (add-to-master-hosts-file)
   (restart-services ["mesos-slave"]))
