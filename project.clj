@@ -5,6 +5,7 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [com.palletops/clj-jclouds "0.1.1"]
-                 [com.palletops/pallet "0.8.0-RC.9"]]
+                 [com.palletops/pallet "0.8.0-RC.9"]
+                 [digest "1.4.4"]]
   :target-path "target/%s"
   :profiles {:uberjar {:aot :all}})
